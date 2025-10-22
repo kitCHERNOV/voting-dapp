@@ -58,8 +58,11 @@ const config: HardhatUserConfig = {
       accounts: [deployerPrivateKey],
     },
     sepolia: {
-      url: `https://eth-sepolia.g.alchemy.com/v2/${providerApiKey}`,
-      accounts: [deployerPrivateKey],
+      // `https://b.web3gate.ru/8a44edaf-6e83-465f-ac7b-acb899a77f49`,
+      url: process.env.WEB3GATE_SEPOLIA_RPC_URL || "",
+      // accounts: [deployerPrivateKey],
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 11155111,
     },
     arbitrum: {
       url: `https://arb-mainnet.g.alchemy.com/v2/${providerApiKey}`,
