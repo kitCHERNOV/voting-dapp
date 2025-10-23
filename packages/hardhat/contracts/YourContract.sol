@@ -1,78 +1,247 @@
 //SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.19;
 
 // Useful for debugging. Remove when deploying to a live network.
 import "hardhat/console.sol";
 
-// Use openzeppelin to inherit battle-tested implementations (ERC20, ERC721, etc)
-// import "@openzeppelin/contracts/access/Ownable.sol";
-
-/**
- * A smart contract that allows changing a state variable of the contract and tracking the changes
- * It also allows the owner to withdraw the Ether in the contract
- * @author BuidlGuidl
- */
-contract YourContract {
-    // State Variables
-    address public immutable owner;
-    string public greeting = "Building Unstoppable Apps!!!";
-    bool public premium = false;
-    uint256 public totalCounter = 0;
-    mapping(address => uint) public userGreetingCounter;
-
-    // Events: a way to emit log statements from smart contract that can be listened to by external parties
-    event GreetingChange(address indexed greetingSetter, string newGreeting, bool premium, uint256 value);
-
-    // Constructor: Called once on contract deployment
-    // Check packages/hardhat/deploy/00_deploy_your_contract.ts
-    constructor(address _owner) {
-        owner = _owner;
+contract Voting {
+    struct Proposal {
+        string name;
+        string description;
+        uint256 voteCount;
+        address proposer;
     }
 
-    // Modifier: used to define a set of rules that must be met before or after a function is executed
-    // Check the withdraw() function
-    modifier isOwner() {
-        // msg.sender: predefined variable that represents address of the account that called the current function
-        require(msg.sender == owner, "Not the Owner");
+    struct VotingSession {
+        string title;
+        string description;
+        Proposal[] proposals;
+        mapping(address => bool) hasVoted;
+        mapping(address => uint256) voterWeights; // For weighted voting
+        uint256 startTime;
+        uint256 endTime;
+        bool isActive;
+        address creator;
+        uint256 totalVotes;
+        bool requiresApproval; // For proposal approval system
+        mapping(uint256 => bool) approvedProposals;
+    }
+
+    mapping(uint256 => VotingSession) public votingSessions;
+    uint256 public sessionCount;
+    
+    // Admin functions
+    address public admin;
+    mapping(address => bool) public moderators;
+    
+    // Events
+    event VotingSessionCreated(uint256 sessionId, string title, address creator);
+    event VoteCast(uint256 sessionId, uint256 proposalId, address voter, uint256 weight);
+    event VotingSessionEnded(uint256 sessionId);
+    event ProposalAdded(uint256 sessionId, uint256 proposalId, string name, address proposer);
+    event ModeratorAdded(address moderator);
+    event ModeratorRemoved(address moderator);
+
+    modifier onlyActive(uint256 _sessionId) {
+        require(votingSessions[_sessionId].isActive, "Voting session is not active");
+        require(block.timestamp >= votingSessions[_sessionId].startTime, "Voting not started");
+        require(block.timestamp <= votingSessions[_sessionId].endTime, "Voting ended");
         _;
     }
 
-    /**
-     * Function that allows anyone to change the state variable "greeting" of the contract and increase the counters
-     *
-     * @param _newGreeting (string memory) - new greeting to save on the contract
-     */
-    function setGreeting(string memory _newGreeting) public payable {
-        // Print data to the hardhat chain console. Remove when deploying to a live network.
-        console.log("Setting new greeting '%s' from %s", _newGreeting, msg.sender);
+    modifier onlyCreator(uint256 _sessionId) {
+        require(msg.sender == votingSessions[_sessionId].creator, "Only creator can perform this action");
+        _;
+    }
 
-        // Change state variables
-        greeting = _newGreeting;
-        totalCounter += 1;
-        userGreetingCounter[msg.sender] += 1;
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only admin can perform this action");
+        _;
+    }
 
-        // msg.value: built-in global variable that represents the amount of ether sent with the transaction
-        if (msg.value > 0) {
-            premium = true;
-        } else {
-            premium = false;
+    modifier onlyModerator() {
+        require(moderators[msg.sender] || msg.sender == admin, "Only moderators can perform this action");
+        _;
+    }
+
+    constructor() {
+        admin = msg.sender;
+        moderators[msg.sender] = true;
+    }
+
+    function createVotingSession(
+        string memory _title,
+        string memory _description,
+        string[] memory _proposalNames,
+        string[] memory _proposalDescriptions,
+        uint256 _durationInMinutes,
+        bool _requiresApproval
+    ) public returns (uint256) {
+        require(bytes(_title).length > 0, "Title cannot be empty");
+        require(_proposalNames.length > 0, "At least one proposal required");
+        require(_proposalNames.length == _proposalDescriptions.length, "Proposal names and descriptions must match");
+        require(_durationInMinutes > 0, "Duration must be positive");
+
+        uint256 sessionId = sessionCount++;
+        VotingSession storage newSession = votingSessions[sessionId];
+        
+        newSession.title = _title;
+        newSession.description = _description;
+        newSession.startTime = block.timestamp;
+        newSession.endTime = block.timestamp + (_durationInMinutes * 1 minutes);
+        newSession.isActive = true;
+        newSession.creator = msg.sender;
+        newSession.requiresApproval = _requiresApproval;
+
+        for (uint256 i = 0; i < _proposalNames.length; i++) {
+            newSession.proposals.push(Proposal({
+                name: _proposalNames[i],
+                description: _proposalDescriptions[i],
+                voteCount: 0,
+                proposer: msg.sender
+            }));
+            
+            if (!_requiresApproval) {
+                newSession.approvedProposals[i] = true;
+            }
         }
 
-        // emit: keyword used to trigger an event
-        emit GreetingChange(msg.sender, _newGreeting, msg.value > 0, msg.value);
+        emit VotingSessionCreated(sessionId, _title, msg.sender);
+        return sessionId;
     }
 
-    /**
-     * Function that allows the owner to withdraw all the Ether in the contract
-     * The function can only be called by the owner of the contract as defined by the isOwner modifier
-     */
-    function withdraw() public isOwner {
-        (bool success, ) = owner.call{ value: address(this).balance }("");
-        require(success, "Failed to send Ether");
+    function addProposal(
+        uint256 _sessionId,
+        string memory _name,
+        string memory _description
+    ) public onlyActive(_sessionId) {
+        VotingSession storage session = votingSessions[_sessionId];
+        require(session.requiresApproval, "This session doesn't allow new proposals");
+        
+        uint256 proposalId = session.proposals.length;
+        session.proposals.push(Proposal({
+            name: _name,
+            description: _description,
+            voteCount: 0,
+            proposer: msg.sender
+        }));
+        
+        emit ProposalAdded(_sessionId, proposalId, _name, msg.sender);
     }
 
-    /**
-     * Function that allows the contract to receive ETH
-     */
-    receive() external payable {}
+    function approveProposal(uint256 _sessionId, uint256 _proposalId) public onlyModerator {
+        VotingSession storage session = votingSessions[_sessionId];
+        require(_proposalId < session.proposals.length, "Invalid proposal ID");
+        require(session.requiresApproval, "This session doesn't require approval");
+        
+        session.approvedProposals[_proposalId] = true;
+    }
+
+    function vote(uint256 _sessionId, uint256 _proposalId) public onlyActive(_sessionId) {
+        VotingSession storage session = votingSessions[_sessionId];
+        require(!session.hasVoted[msg.sender], "You have already voted");
+        require(_proposalId < session.proposals.length, "Invalid proposal ID");
+        require(session.approvedProposals[_proposalId], "Proposal not approved");
+
+        session.hasVoted[msg.sender] = true;
+        session.proposals[_proposalId].voteCount++;
+        session.totalVotes++;
+
+        emit VoteCast(_sessionId, _proposalId, msg.sender, 1);
+    }
+
+    function weightedVote(uint256 _sessionId, uint256 _proposalId, uint256 _weight) public onlyActive(_sessionId) {
+        VotingSession storage session = votingSessions[_sessionId];
+        require(!session.hasVoted[msg.sender], "You have already voted");
+        require(_proposalId < session.proposals.length, "Invalid proposal ID");
+        require(session.approvedProposals[_proposalId], "Proposal not approved");
+        require(_weight > 0, "Weight must be positive");
+
+        session.hasVoted[msg.sender] = true;
+        session.voterWeights[msg.sender] = _weight;
+        session.proposals[_proposalId].voteCount += _weight;
+        session.totalVotes += _weight;
+
+        emit VoteCast(_sessionId, _proposalId, msg.sender, _weight);
+    }
+
+    function getProposals(uint256 _sessionId) public view returns (Proposal[] memory) {
+        return votingSessions[_sessionId].proposals;
+    }
+
+    function getSessionInfo(uint256 _sessionId) public view returns (
+        string memory title,
+        string memory description,
+        uint256 startTime,
+        uint256 endTime,
+        bool isActive,
+        address creator,
+        uint256 totalVotes,
+        bool requiresApproval
+    ) {
+        VotingSession storage session = votingSessions[_sessionId];
+        return (
+            session.title,
+            session.description,
+            session.startTime,
+            session.endTime,
+            session.isActive,
+            session.creator,
+            session.totalVotes,
+            session.requiresApproval
+        );
+    }
+
+    function hasVoted(uint256 _sessionId, address _voter) public view returns (bool) {
+        return votingSessions[_sessionId].hasVoted[_voter];
+    }
+
+    function getVoterWeight(uint256 _sessionId, address _voter) public view returns (uint256) {
+        return votingSessions[_sessionId].voterWeights[_voter];
+    }
+
+    function isProposalApproved(uint256 _sessionId, uint256 _proposalId) public view returns (bool) {
+        return votingSessions[_sessionId].approvedProposals[_proposalId];
+    }
+
+    function endVotingSession(uint256 _sessionId) public onlyCreator(_sessionId) {
+        votingSessions[_sessionId].isActive = false;
+        emit VotingSessionEnded(_sessionId);
+    }
+
+    function getWinningProposal(uint256 _sessionId) public view returns (uint256 winningProposalId, uint256 winningVoteCount) {
+        VotingSession storage session = votingSessions[_sessionId];
+        winningVoteCount = 0;
+        winningProposalId = 0;
+
+        for (uint256 i = 0; i < session.proposals.length; i++) {
+            if (session.proposals[i].voteCount > winningVoteCount) {
+                winningVoteCount = session.proposals[i].voteCount;
+                winningProposalId = i;
+            }
+        }
+    }
+
+    function getAllSessions() public view returns (uint256[] memory) {
+        uint256[] memory sessions = new uint256[](sessionCount);
+        for (uint256 i = 0; i < sessionCount; i++) {
+            sessions[i] = i;
+        }
+        return sessions;
+    }
+
+    // Admin functions
+    function addModerator(address _moderator) public onlyAdmin {
+        moderators[_moderator] = true;
+        emit ModeratorAdded(_moderator);
+    }
+
+    function removeModerator(address _moderator) public onlyAdmin {
+        moderators[_moderator] = false;
+        emit ModeratorRemoved(_moderator);
+    }
+
+    function changeAdmin(address _newAdmin) public onlyAdmin {
+        admin = _newAdmin;
+    }
 }
