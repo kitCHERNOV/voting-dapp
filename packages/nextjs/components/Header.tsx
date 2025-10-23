@@ -21,6 +21,14 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/",
   },
   {
+    label: "🗳️ Голосование",
+    href: "/voting",
+  },
+  {
+    label: "🔐 Админ",
+    href: "/admin",
+  },
+  {
     label: "Debug Contracts",
     href: "/debug",
     icon: <BugAntIcon className="h-4 w-4" />,
