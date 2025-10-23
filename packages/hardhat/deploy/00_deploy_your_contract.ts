@@ -1,44 +1,54 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
-import { Contract } from "ethers";
 
-/**
- * Deploys a contract named "YourContract" using the deployer account and
- * constructor arguments set to the deployer address
- *
- * @param hre HardhatRuntimeEnvironment object.
- */
-const deployYourContract: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-  /*
-    On localhost, the deployer account is the one that comes with Hardhat, which is already funded.
+const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
+  const { deployments, getNamedAccounts } = hre;
+  const { deploy } = deployments;
+  const { deployer } = await getNamedAccounts();
 
-    When deploying to live networks (e.g `yarn deploy --network sepolia`), the deployer account
-    should have sufficient balance to pay for the gas fees for contract creation.
+  console.log("🚀 Deploying Voting contract...");
 
-    You can generate a random account with `yarn generate` or `yarn account:import` to import your
-    existing PK which will fill DEPLOYER_PRIVATE_KEY_ENCRYPTED in the .env file (then used on hardhat.config.ts)
-    You can run the `yarn account` command to check your balance in every network.
-  */
-  const { deployer } = await hre.getNamedAccounts();
-  const { deploy } = hre.deployments;
-
-  await deploy("YourContract", {
+  // Deploy the Voting contract
+  const voting = await deploy("Voting", {
     from: deployer,
-    // Contract constructor arguments
-    args: [deployer],
+    args: [], // No constructor arguments
     log: true,
-    // autoMine: can be passed to the deploy function to make the deployment process faster on local networks by
-    // automatically mining the contract deployment transaction. There is no effect on live networks.
     autoMine: true,
   });
 
-  // Get the deployed contract to interact with it after deploying.
-  const yourContract = await hre.ethers.getContract<Contract>("YourContract", deployer);
-  console.log("👋 Initial greeting:", await yourContract.greeting());
+  console.log("✅ Voting contract deployed at:", voting.address);
+
+  // Create test voting sessions
+  if (voting.newlyDeployed) {
+    const votingContract = await hre.ethers.getContract("Voting", deployer);
+    
+    // Create a simple voting session
+    const tx1 = await votingContract.createVotingSession(
+      "Best Project Selection",
+      "Vote for the most interesting project",
+      ["Project A", "Project B", "Project C"],
+      ["A revolutionary blockchain project", "An innovative DeFi solution", "A creative NFT platform"],
+      60, // 60 minutes
+      false // No approval required
+    );
+    
+    await tx1.wait();
+    console.log("✅ Test voting session 1 created!");
+
+    // Create a moderated voting session
+    const tx2 = await votingContract.createVotingSession(
+      "Community Proposal Voting",
+      "Vote on community proposals (requires moderation)",
+      ["Proposal 1", "Proposal 2"],
+      ["Increase community rewards", "Change governance parameters"],
+      120, // 120 minutes
+      true // Requires approval
+    );
+    
+    await tx2.wait();
+    console.log("✅ Test voting session 2 created!");
+  }
 };
 
-export default deployYourContract;
-
-// Tags are useful if you have multiple deploy files and only want to run one of them.
-// e.g. yarn deploy --tags YourContract
-deployYourContract.tags = ["YourContract"];
+export default func;
+func.tags = ["Voting"];
