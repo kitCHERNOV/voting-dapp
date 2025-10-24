@@ -19,6 +19,7 @@ contract DecentralizedVoting {
         uint256 id;
         string title;
         string description;
+        address creator;
         uint256 startTime;
         uint256 endTime;
         bool finalized;
@@ -34,6 +35,7 @@ contract DecentralizedVoting {
     mapping(uint256 => mapping(uint256 => Candidate)) public proposalCandidates;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
     mapping(uint256 => mapping(address => uint256)) public voterChoice;
+    mapping(uint256 => mapping(address => bool)) public proposalVoters; // proposalId => voter => isRegistered
     mapping(address => bool) public registeredVoters;
     
     event ProposalCreated(uint256 indexed proposalId, string title, uint256 startTime, uint256 endTime);
@@ -42,6 +44,8 @@ contract DecentralizedVoting {
     event ProposalFinalized(uint256 indexed proposalId, uint256 winningCandidateId);
     event VoterRegistered(address indexed voter);
     event VoterDeregistered(address indexed voter);
+    event VoterRegisteredForProposal(uint256 indexed proposalId, address indexed voter);
+    event VoterDeregisteredForProposal(uint256 indexed proposalId, address indexed voter);
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -50,6 +54,16 @@ contract DecentralizedVoting {
     
     modifier onlyRegisteredVoter() {
         require(registeredVoters[msg.sender], "You are not registered to vote");
+        _;
+    }
+    
+    modifier onlyProposalCreator(uint256 _proposalId) {
+        require(proposals[_proposalId].creator == msg.sender, "Only proposal creator can perform this action");
+        _;
+    }
+    
+    modifier canVoteInProposal(uint256 _proposalId) {
+        require(proposalVoters[_proposalId][msg.sender], "You are not registered for this proposal");
         _;
     }
     
@@ -91,6 +105,46 @@ contract DecentralizedVoting {
         emit VoterDeregistered(_voter);
     }
     
+    // Функции для регистрации участников конкретного голосования
+    function registerVoterForProposal(uint256 _proposalId, address _voter) 
+        external 
+        proposalExists(_proposalId) 
+        onlyProposalCreator(_proposalId) 
+    {
+        require(!proposalVoters[_proposalId][_voter], "Voter already registered for this proposal");
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot register voters after voting starts");
+        
+        proposalVoters[_proposalId][_voter] = true;
+        emit VoterRegisteredForProposal(_proposalId, _voter);
+    }
+    
+    function registerVotersBatchForProposal(uint256 _proposalId, address[] calldata _voters) 
+        external 
+        proposalExists(_proposalId) 
+        onlyProposalCreator(_proposalId) 
+    {
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot register voters after voting starts");
+        
+        for (uint256 i = 0; i < _voters.length; i++) {
+            if (!proposalVoters[_proposalId][_voters[i]]) {
+                proposalVoters[_proposalId][_voters[i]] = true;
+                emit VoterRegisteredForProposal(_proposalId, _voters[i]);
+            }
+        }
+    }
+    
+    function deregisterVoterForProposal(uint256 _proposalId, address _voter) 
+        external 
+        proposalExists(_proposalId) 
+        onlyProposalCreator(_proposalId) 
+    {
+        require(proposalVoters[_proposalId][_voter], "Voter not registered for this proposal");
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot deregister voters after voting starts");
+        
+        proposalVoters[_proposalId][_voter] = false;
+        emit VoterDeregisteredForProposal(_proposalId, _voter);
+    }
+    
     function createProposal(
         string memory _title,
         string memory _description,
@@ -99,13 +153,14 @@ contract DecentralizedVoting {
         require(_durationInDays > 0, "Duration must be greater than 0");
         
         proposalCount++;
-        uint256 startTime = block.timestamp + 1 hours; // Голосование начинается через час
+        uint256 startTime = block.timestamp + 1 minutes; // Голосование начинается через минуту
         uint256 endTime = startTime + (_durationInDays * 1 days);
         
         proposals[proposalCount] = Proposal({
             id: proposalCount,
             title: _title,
             description: _description,
+            creator: msg.sender,
             startTime: startTime,
             endTime: endTime,
             finalized: false,
@@ -142,9 +197,9 @@ contract DecentralizedVoting {
     
     function vote(uint256 _proposalId, uint256 _candidateId) 
         external 
-        onlyRegisteredVoter 
         proposalExists(_proposalId) 
         proposalActive(_proposalId) 
+        canVoteInProposal(_proposalId)
     {
         require(!hasVoted[_proposalId][msg.sender], "You have already voted");
         require(proposalCandidates[_proposalId][_candidateId].exists, "Candidate does not exist");
@@ -244,6 +299,15 @@ contract DecentralizedVoting {
         returns (bool) 
     {
         return hasVoted[_proposalId][_voter];
+    }
+    
+    function isVoterRegisteredForProposal(uint256 _proposalId, address _voter) 
+        external 
+        view 
+        proposalExists(_proposalId) 
+        returns (bool) 
+    {
+        return proposalVoters[_proposalId][_voter];
     }
     
     function transferOwnership(address _newOwner) external onlyOwner {

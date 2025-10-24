@@ -35,10 +35,14 @@ export default function AdminPage() {
             <span>❌ У вас нет прав доступа к админ-панели</span>
           </div>
           <div className="mt-4 text-sm opacity-60">
-            <p>
-              Ваш адрес: <Address address={connectedAddress} />
-            </p>
-            <p>Владелец контракта: {owner ? <Address address={owner} /> : "Загрузка..."}</p>
+            <div>
+              <span>Ваш адрес: </span>
+              <Address address={connectedAddress} />
+            </div>
+            <div>
+              <span>Владелец контракта: </span>
+              {owner ? <Address address={owner} /> : "Загрузка..."}
+            </div>
           </div>
         </div>
       </div>

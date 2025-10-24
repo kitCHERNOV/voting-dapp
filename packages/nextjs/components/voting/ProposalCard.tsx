@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import CandidateList from "./CandidateList";
+import ProposalVoterManagement from "./ProposalVoterManagement";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useAccount } from "wagmi";
-import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
 interface ProposalCardProps {
   proposalId: bigint;
@@ -14,6 +15,7 @@ interface ProposalCardProps {
 export default function ProposalCard({ proposalId }: ProposalCardProps) {
   const { address: connectedAddress } = useAccount();
   const [showDetails, setShowDetails] = useState(false);
+  const [showVoterManagement, setShowVoterManagement] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<bigint | null>(null);
 
   const { data: proposal } = useScaffoldReadContract({
@@ -28,34 +30,25 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
     args: [proposalId, connectedAddress],
   });
 
-  const { data: isRegistered } = useScaffoldReadContract({
+  const {} = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "registeredVoters",
     args: [connectedAddress],
   });
 
-  const { writeContractAsync: vote, isPending: isVoting } = useScaffoldWriteContract("DecentralizedVoting");
+  const { data: isRegisteredForProposal } = useScaffoldReadContract({
+    contractName: "DecentralizedVoting",
+    functionName: "isVoterRegisteredForProposal",
+    args: [proposalId, connectedAddress],
+  });
 
   if (!proposal) return null;
 
-  const [, title, description, startTime, endTime, finalized, totalVotes] = proposal;
+  const [, title, description, creator, startTime, endTime, finalized, totalVotes] = proposal;
   const now = Math.floor(Date.now() / 1000);
   const isActive = now >= Number(startTime) && now <= Number(endTime) && !finalized;
   const hasEnded = now > Number(endTime);
-
-  const handleVote = async () => {
-    if (!selectedCandidate) return;
-
-    try {
-      await vote({
-        functionName: "vote",
-        args: [proposalId, selectedCandidate],
-      });
-      setSelectedCandidate(null);
-    } catch (e) {
-      console.error("Error voting:", e);
-    }
-  };
+  const isCreator = connectedAddress && creator && connectedAddress.toLowerCase() === creator.toLowerCase();
 
   const getStatusBadge = () => {
     if (finalized) return <span className="badge badge-neutral">Завершено</span>;
@@ -80,6 +73,15 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
             <span className="font-bold">{totalVotes?.toString()}</span>
           </div>
           <div className="flex justify-between">
+            <span>Начало:</span>
+            <span>
+              {formatDistanceToNow(new Date(Number(startTime) * 1000), {
+                addSuffix: true,
+                locale: ru,
+              })}
+            </span>
+          </div>
+          <div className="flex justify-between">
             <span>Окончание:</span>
             <span>
               {formatDistanceToNow(new Date(Number(endTime) * 1000), {
@@ -96,16 +98,29 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
           </div>
         )}
 
-        {!isRegistered && connectedAddress && (
+        {!isRegisteredForProposal && connectedAddress && !isCreator && (
           <div className="alert alert-warning mt-2">
-            <span>⚠️ Вы не зарегистрированы для голосования. Обратитесь к администратору.</span>
+            <span>⚠️ Вы не зарегистрированы для этого голосования. Обратитесь к создателю голосования.</span>
           </div>
         )}
 
-        <div className="card-actions justify-end mt-4">
-          <button className="btn btn-primary btn-sm" onClick={() => setShowDetails(!showDetails)}>
-            {showDetails ? "Скрыть" : "Подробнее"}
-          </button>
+        {isCreator && (
+          <div className="alert alert-info mt-2">
+            <span>👑 Вы создатель этого голосования</span>
+          </div>
+        )}
+
+        <div className="card-actions justify-between mt-4">
+          <div className="flex gap-2">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowDetails(!showDetails)}>
+              {showDetails ? "Скрыть" : "Подробнее"}
+            </button>
+            {isCreator && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowVoterManagement(!showVoterManagement)}>
+                {showVoterManagement ? "Скрыть управление" : "Управление участниками"}
+              </button>
+            )}
+          </div>
         </div>
 
         {showDetails && (
@@ -114,18 +129,15 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
               proposalId={proposalId}
               onSelectCandidate={setSelectedCandidate}
               selectedCandidate={selectedCandidate}
-              showVoteButton={isActive && !hasVoted && isRegistered}
+              showVoteButton={false}
+              canVote={isActive && !hasVoted && isRegisteredForProposal}
             />
+          </div>
+        )}
 
-            {isActive && !hasVoted && isRegistered && (
-              <button
-                className="btn btn-success w-full mt-4"
-                onClick={handleVote}
-                disabled={!selectedCandidate || isVoting}
-              >
-                {isVoting ? "Голосование..." : "Проголосовать"}
-              </button>
-            )}
+        {showVoterManagement && (
+          <div className="mt-4 border-t pt-4">
+            <ProposalVoterManagement proposalId={proposalId} />
           </div>
         )}
       </div>
