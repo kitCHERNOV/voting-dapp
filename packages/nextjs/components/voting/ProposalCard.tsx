@@ -6,7 +6,8 @@ import ProposalVoterManagement from "./ProposalVoterManagement";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useAccount } from "wagmi";
-import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { notification } from "~~/utils/scaffold-eth";
 
 interface ProposalCardProps {
   proposalId: bigint;
@@ -30,7 +31,7 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
     args: [proposalId, connectedAddress],
   });
 
-  const {} = useScaffoldReadContract({
+  const { data: isGloballyRegistered } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "registeredVoters",
     args: [connectedAddress],
@@ -42,6 +43,8 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
     args: [proposalId, connectedAddress],
   });
 
+  const { writeContractAsync: selfRegisterForProposal } = useScaffoldWriteContract("DecentralizedVoting");
+
   if (!proposal) return null;
 
   const [, title, description, creator, startTime, endTime, finalized, totalVotes] = proposal;
@@ -49,6 +52,24 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
   const isActive = now >= Number(startTime) && now <= Number(endTime) && !finalized;
   const hasEnded = now > Number(endTime);
   const isCreator = connectedAddress && creator && connectedAddress.toLowerCase() === creator.toLowerCase();
+
+  // User can vote if they are globally registered OR registered for this specific proposal
+  const canVote = isGloballyRegistered || isRegisteredForProposal;
+  const canSelfRegister = now < Number(startTime) && !finalized; // Can only register before voting starts
+
+  const handleSelfRegisterForProposal = async () => {
+    try {
+      await selfRegisterForProposal({
+        functionName: "selfRegisterForProposal",
+        args: [proposalId],
+      });
+      notification.success("Вы успешно зарегистрированы для этого голосования!");
+      window.location.reload();
+    } catch (e: any) {
+      console.error("Error self-registering for proposal:", e);
+      notification.error(e.message || "Ошибка регистрации");
+    }
+  };
 
   const getStatusBadge = () => {
     if (finalized) return <span className="badge badge-neutral">Завершено</span>;
@@ -98,9 +119,23 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
           </div>
         )}
 
-        {!isRegisteredForProposal && connectedAddress && !isCreator && (
+        {!canVote && connectedAddress && !isCreator && (
           <div className="alert alert-warning mt-2">
-            <span>⚠️ Вы не зарегистрированы для этого голосования. Обратитесь к создателю голосования.</span>
+            <div className="flex flex-col gap-2">
+              <span>⚠️ Вы не зарегистрированы для этого голосования.</span>
+              {canSelfRegister && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSelfRegisterForProposal}
+                  disabled={isRegisteredForProposal}
+                >
+                  {isRegisteredForProposal ? "✓ Зарегистрирован" : "Зарегистрироваться для голосования"}
+                </button>
+              )}
+              {!canSelfRegister && (
+                <span className="text-sm opacity-70">Регистрация недоступна после начала голосования</span>
+              )}
+            </div>
           </div>
         )}
 
@@ -130,7 +165,7 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
               onSelectCandidate={setSelectedCandidate}
               selectedCandidate={selectedCandidate}
               showVoteButton={false}
-              canVote={isActive && !hasVoted && isRegisteredForProposal}
+              canVote={isActive && !hasVoted && canVote}
             />
           </div>
         )}

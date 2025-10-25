@@ -450,6 +450,25 @@ const deployedContracts = {
         {
           inputs: [
             {
+              internalType: "address",
+              name: "_voter",
+              type: "address",
+            },
+          ],
+          name: "isVoterGloballyRegistered",
+          outputs: [
+            {
+              internalType: "bool",
+              name: "",
+              type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
               internalType: "uint256",
               name: "_proposalId",
               type: "uint256",
@@ -698,6 +717,26 @@ const deployedContracts = {
             },
           ],
           stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "_proposalId",
+              type: "uint256",
+            },
+          ],
+          name: "selfRegisterForProposal",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "selfRegisterVoter",
+          outputs: [],
+          stateMutability: "nonpayable",
           type: "function",
         },
         {
