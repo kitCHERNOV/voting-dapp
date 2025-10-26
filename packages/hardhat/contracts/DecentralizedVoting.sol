@@ -38,7 +38,6 @@ contract DecentralizedVoting {
     mapping(uint256 => mapping(address => uint256)) public voterChoice;
     mapping(uint256 => mapping(address => bool)) public proposalVoters; // proposalId => voter => isRegistered
     mapping(address => bool) public registeredVoters;
-    mapping(uint256 => bool) public votingStarted; // proposalId => hasVotingStarted
     
     event ProposalCreated(uint256 indexed proposalId, string title, uint256 startTime, uint256 endTime);
     event CandidateAdded(uint256 indexed proposalId, uint256 indexed candidateId, string name);
@@ -85,13 +84,6 @@ contract DecentralizedVoting {
         _;
     }
     
-    modifier canStartVoting(uint256 _proposalId) {
-        require(!votingStarted[_proposalId], "Voting has already started");
-        require(block.timestamp <= proposals[_proposalId].endTime, "Proposal has expired");
-        require(!proposals[_proposalId].finalized, "Proposal already finalized");
-        _;
-    }
-    
     constructor() {
         owner = msg.sender;
         registeredVoters[msg.sender] = true;
@@ -133,7 +125,7 @@ contract DecentralizedVoting {
         onlyProposalCreator(_proposalId) 
     {
         require(!proposalVoters[_proposalId][_voter], "Voter already registered for this proposal");
-        require(!votingStarted[_proposalId], "Cannot register voters after voting starts");
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot register voters after voting starts");
         
         proposalVoters[_proposalId][_voter] = true;
         emit VoterRegisteredForProposal(_proposalId, _voter);
@@ -144,7 +136,7 @@ contract DecentralizedVoting {
         proposalExists(_proposalId) 
         onlyProposalCreator(_proposalId) 
     {
-        require(!votingStarted[_proposalId], "Cannot register voters after voting starts");
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot register voters after voting starts");
         
         for (uint256 i = 0; i < _voters.length; i++) {
             if (!proposalVoters[_proposalId][_voters[i]]) {
@@ -160,7 +152,7 @@ contract DecentralizedVoting {
         onlyProposalCreator(_proposalId) 
     {
         require(proposalVoters[_proposalId][_voter], "Voter not registered for this proposal");
-        require(!votingStarted[_proposalId], "Cannot deregister voters after voting starts");
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot deregister voters after voting starts");
         
         proposalVoters[_proposalId][_voter] = false;
         emit VoterDeregisteredForProposal(_proposalId, _voter);
@@ -172,7 +164,7 @@ contract DecentralizedVoting {
         proposalExists(_proposalId) 
     {
         require(!proposalVoters[_proposalId][msg.sender], "You are already registered for this proposal");
-        require(!votingStarted[_proposalId], "Cannot register after voting starts");
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot register after voting starts");
         
         proposalVoters[_proposalId][msg.sender] = true;
         emit VoterRegisteredForProposal(_proposalId, msg.sender);
@@ -186,8 +178,8 @@ contract DecentralizedVoting {
         require(_durationInDays > 0, "Duration must be greater than 0");
         
         proposalCount++;
-        uint256 startTime = 0; // Voting starts when first vote is cast
-        uint256 endTime = block.timestamp + (_durationInDays * 1 days); // End time is set from creation
+        uint256 startTime = block.timestamp + 5 minutes; // Голосование начинается через минуту
+        uint256 endTime = startTime + (_durationInDays * 1 days);
         
         proposals[proposalCount] = Proposal({
             id: proposalCount,
@@ -210,7 +202,7 @@ contract DecentralizedVoting {
         string memory _name,
         string memory _description
     ) external proposalExists(_proposalId) returns (uint256) {
-        require(!votingStarted[_proposalId], "Cannot add candidates after voting starts");
+        require(block.timestamp < proposals[_proposalId].startTime, "Cannot add candidates after voting starts");
         
         candidateCount++;
         
@@ -231,19 +223,11 @@ contract DecentralizedVoting {
     function vote(uint256 _proposalId, uint256 _candidateId) 
         external 
         proposalExists(_proposalId) 
+        proposalActive(_proposalId) 
         canVoteInProposal(_proposalId)
     {
         require(!hasVoted[_proposalId][msg.sender], "You have already voted");
         require(proposalCandidates[_proposalId][_candidateId].exists, "Candidate does not exist");
-        require(block.timestamp <= proposals[_proposalId].endTime, "Voting has ended");
-        require(!proposals[_proposalId].finalized, "Proposal already finalized");
-        
-        // If this is the first vote, start the voting period
-        if (!votingStarted[_proposalId]) {
-            votingStarted[_proposalId] = true;
-            proposals[_proposalId].startTime = block.timestamp;
-            emit VotingStarted(_proposalId, block.timestamp);
-        }
         
         hasVoted[_proposalId][msg.sender] = true;
         voterChoice[_proposalId][msg.sender] = _candidateId;

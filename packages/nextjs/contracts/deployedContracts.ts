@@ -179,6 +179,25 @@ const deployedContracts = {
           type: "event",
         },
         {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "proposalId",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "startTime",
+              type: "uint256",
+            },
+          ],
+          name: "VotingStarted",
+          type: "event",
+        },
+        {
           inputs: [
             {
               internalType: "uint256",
