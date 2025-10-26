@@ -18,6 +18,11 @@ const ABI = parseAbi([
 ]);
 
 export const fetchPriceFromUniswap = async (targetNetwork: ChainWithAttributes): Promise<number> => {
+  // Skip price fetching for local networks
+  if (targetNetwork.id === 31337 || targetNetwork.id === 1337) {
+    return 0;
+  }
+  
   if (
     targetNetwork.nativeCurrency.symbol !== "ETH" &&
     targetNetwork.nativeCurrency.symbol !== "SEP" &&
@@ -63,8 +68,8 @@ export const fetchPriceFromUniswap = async (targetNetwork: ChainWithAttributes):
     const price = parseFloat(route.midPrice.toSignificant(6));
     return price;
   } catch (error) {
-    console.error(
-      `useNativeCurrencyPrice - Error fetching ${targetNetwork.nativeCurrency.symbol} price from Uniswap: `,
+    console.warn(
+      `useNativeCurrencyPrice - Error fetching ${targetNetwork.nativeCurrency.symbol} price from Uniswap (this is normal for local networks): `,
       error,
     );
     return 0;

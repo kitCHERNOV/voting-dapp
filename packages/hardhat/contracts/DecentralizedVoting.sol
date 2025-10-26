@@ -347,4 +347,9 @@ contract DecentralizedVoting {
         require(_newOwner != address(0), "Invalid address");
         owner = _newOwner;
     }
+    
+    // Function to get current block timestamp for frontend
+    function getCurrentTimestamp() external view returns (uint256) {
+        return block.timestamp;
+    }
 }

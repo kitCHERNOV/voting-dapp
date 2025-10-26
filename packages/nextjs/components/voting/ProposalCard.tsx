@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import CandidateList from "./CandidateList";
+import CompactCountdownTimer from "./CompactCountdownTimer";
 import ProposalVoterManagement from "./ProposalVoterManagement";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useAccount } from "wagmi";
-import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useBlockTimestamp, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 interface ProposalCardProps {
@@ -18,6 +19,9 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [showVoterManagement, setShowVoterManagement] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<bigint | null>(null);
+
+  // Use blockchain timestamp instead of client time
+  const blockTimestamp = useBlockTimestamp();
 
   const { data: proposal } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
@@ -48,7 +52,8 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
   if (!proposal) return null;
 
   const [, title, description, creator, startTime, endTime, finalized, totalVotes] = proposal;
-  const now = Math.floor(Date.now() / 1000);
+  // Use blockchain timestamp for accurate time calculations
+  const now = blockTimestamp;
   const isActive = now >= Number(startTime) && now <= Number(endTime) && !finalized;
   const hasEnded = now > Number(endTime);
   const isCreator = connectedAddress && creator && connectedAddress.toLowerCase() === creator.toLowerCase();
@@ -75,7 +80,18 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
     if (finalized) return <span className="badge badge-neutral">Завершено</span>;
     if (isActive) return <span className="badge badge-success">Активно</span>;
     if (hasEnded) return <span className="badge badge-warning">Ожидает завершения</span>;
-    return <span className="badge badge-info">Скоро</span>;
+    return (
+      <div className="flex items-center gap-2">
+        <span className="badge badge-info">Начинается через:</span>
+        <CompactCountdownTimer
+          targetTime={Number(startTime)}
+          onComplete={() => {
+            // Обновляем страницу когда голосование начинается
+            window.location.reload();
+          }}
+        />
+      </div>
+    );
   };
 
   return (
@@ -95,12 +111,17 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
           </div>
           <div className="flex justify-between">
             <span>Начало:</span>
-            <span>
-              {formatDistanceToNow(new Date(Number(startTime) * 1000), {
-                addSuffix: true,
-                locale: ru,
-              })}
-            </span>
+            <div className="text-right">
+              <div>
+                {formatDistanceToNow(new Date(Number(startTime) * 1000), {
+                  addSuffix: true,
+                  locale: ru,
+                })}
+              </div>
+              {!isActive && !hasEnded && (
+                <CompactCountdownTimer targetTime={Number(startTime)} className="text-xs opacity-70" />
+              )}
+            </div>
           </div>
           <div className="flex justify-between">
             <span>Окончание:</span>
@@ -110,6 +131,18 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
                 locale: ru,
               })}
             </span>
+          </div>
+
+          {/* Отладочная информация о времени */}
+          <div className="text-xs opacity-60 mt-2 border-t pt-2">
+            <div>Текущее время блокчейна: {new Date(now * 1000).toLocaleString()}</div>
+            <div>Время начала голосования: {new Date(Number(startTime) * 1000).toLocaleString()}</div>
+            <div>Время окончания: {new Date(Number(endTime) * 1000).toLocaleString()}</div>
+            <div>Статус: {isActive ? "Активно" : hasEnded ? "Завершено" : "Ожидает начала"}</div>
+            <div>isActive: {isActive ? "true" : "false"}</div>
+            <div>hasVoted: {hasVoted ? "true" : "false"}</div>
+            <div>canVote: {canVote ? "true" : "false"}</div>
+            <div>canVote для CandidateList: {isActive && !hasVoted && canVote ? "true" : "false"}</div>
           </div>
         </div>
 
@@ -164,8 +197,9 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
               proposalId={proposalId}
               onSelectCandidate={setSelectedCandidate}
               selectedCandidate={selectedCandidate}
-              showVoteButton={false}
+              showVoteButton={true}
               canVote={isActive && !hasVoted && canVote}
+              startTime={Number(startTime)}
             />
           </div>
         )}

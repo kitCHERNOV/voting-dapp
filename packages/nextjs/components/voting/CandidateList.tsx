@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useBlockTimestamp, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 interface CandidateListProps {
@@ -22,6 +22,9 @@ export default function CandidateList({
 }: CandidateListProps) {
   const { address: connectedAddress } = useAccount();
   const [votingCandidate, setVotingCandidate] = useState<bigint | null>(null);
+
+  // Use blockchain timestamp for accurate time calculations
+  const blockTimestamp = useBlockTimestamp();
 
   const { writeContractAsync: vote } = useScaffoldWriteContract("DecentralizedVoting");
 
@@ -80,6 +83,8 @@ export default function CandidateList({
       {/* Отладочная информация */}
       <div className="text-xs opacity-60 mb-2">
         canVote: {canVote ? "true" : "false"}, hasVoted: {hasVoted ? "true" : "false"}
+        <br />
+        Текущее время блокчейна: {new Date(blockTimestamp * 1000).toLocaleString()}
       </div>
 
       {hasVoted && (
