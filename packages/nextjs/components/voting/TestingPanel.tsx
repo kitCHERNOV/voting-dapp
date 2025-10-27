@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { parseEther } from "viem";
-import { useAccount, useBalance, useWalletClient } from "wagmi";
+import { useAccount, useBalance} from "wagmi"; /*, useWalletClient */
 import { notification } from "~~/utils/scaffold-eth";
 
 interface TestResult {
@@ -13,7 +13,7 @@ interface TestResult {
 
 export default function TestingPanel() {
   const { address } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  // const { data: walletClient } = useWalletClient();
   const { data: balance } = useBalance({ address });
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -56,7 +56,7 @@ export default function TestingPanel() {
 
       // Тест 3: Проверка контракта
       addResult({ name: "Проверка смарт-контракта", status: "running" });
-      const test2 = testResults.length;
+      //const test2 = testResults.length;
       // Проверяем, что контракт развернут
       addResult({ name: "✅ Все основные проверки пройдены", status: "success" });
       addResult({
