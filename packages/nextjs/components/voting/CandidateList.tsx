@@ -31,18 +31,30 @@ export default function CandidateList({
     contractName: "DecentralizedVoting",
     functionName: "getProposalCandidates",
     args: [proposalId],
+    query: {
+      refetchInterval: 5000, // Refresh every 5 seconds to show new candidates
+    },
+    watch: true,
   });
 
   const { data: results } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "getResults",
     args: [proposalId],
+    query: {
+      refetchInterval: 5000, // Refresh every 5 seconds to show updated vote counts
+    },
+    watch: true,
   });
 
   const { data: hasVoted } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "hasVoted",
     args: [proposalId, connectedAddress],
+    query: {
+      refetchInterval: 5000,
+    },
+    watch: true,
   });
 
   const handleVote = async (candidateId: bigint) => {

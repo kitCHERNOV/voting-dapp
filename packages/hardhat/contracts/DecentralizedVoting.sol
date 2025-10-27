@@ -178,7 +178,7 @@ contract DecentralizedVoting {
         require(_durationInDays > 0, "Duration must be greater than 0");
         
         proposalCount++;
-        uint256 startTime = block.timestamp + 5 minutes; // Голосование начинается через минуту
+        uint256 startTime = block.timestamp + 1 minutes; // Голосование начинается через минуту
         uint256 endTime = startTime + (_durationInDays * 1 days);
         
         proposals[proposalCount] = Proposal({

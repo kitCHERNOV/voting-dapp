@@ -7,6 +7,10 @@ export default function ProposalList() {
   const { data: proposalCount } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "proposalCount",
+    query: {
+      refetchInterval: 5000, // Refresh every 5 seconds to show new proposals
+    },
+    watch: true,
   });
 
   const proposals = [];

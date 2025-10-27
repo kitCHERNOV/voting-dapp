@@ -4,10 +4,10 @@ import { useState } from "react";
 import CandidateList from "./CandidateList";
 import CompactCountdownTimer from "./CompactCountdownTimer";
 import ProposalVoterManagement from "./ProposalVoterManagement";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useAccount } from "wagmi";
-import { useQueryClient } from "@tanstack/react-query";
 import { useBlockTimestamp, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -29,18 +29,30 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
     contractName: "DecentralizedVoting",
     functionName: "proposals",
     args: [proposalId],
+    query: {
+      refetchInterval: 5000, // Refresh every 5 seconds to detect when voting starts
+    },
+    watch: true,
   });
 
   const { data: hasVoted } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "hasVoted",
     args: [proposalId, connectedAddress],
+    query: {
+      refetchInterval: 5000,
+    },
+    watch: true,
   });
 
   const { data: isRegisteredForProposal } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "isVoterRegisteredForProposal",
     args: [proposalId, connectedAddress],
+    query: {
+      refetchInterval: 5000,
+    },
+    watch: true,
   });
 
   const { writeContractAsync } = useScaffoldWriteContract({ contractName: "DecentralizedVoting" });
@@ -52,14 +64,14 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
   const now = blockTimestamp;
   const isActive = now >= Number(startTime) && now <= Number(endTime) && !finalized;
   const hasEnded = now > Number(endTime);
-  const isCreator = connectedAddress && creator && connectedAddress.toLowerCase() === creator.toLowerCase();
+  const isCreator = !!(connectedAddress && creator && connectedAddress.toLowerCase() === creator.toLowerCase());
 
   // User can vote only if they're registered for this proposal AND haven't voted yet AND voting is active
-  const canVote = connectedAddress && isRegisteredForProposal && isActive && !hasVoted;
+  const canVote = !!(connectedAddress && isRegisteredForProposal && isActive && !hasVoted);
   // Registration is only allowed BEFORE voting starts
-  const canRegister = connectedAddress && !isRegisteredForProposal && now < Number(startTime) && !finalized;
+  const canRegister = !!(connectedAddress && !isRegisteredForProposal && now < Number(startTime) && !finalized);
   // Show candidates only if registered
-  const shouldShowCandidates = isRegisteredForProposal;
+  const shouldShowCandidates = !!isRegisteredForProposal;
 
   const handleSelfRegisterForProposal = async () => {
     try {
@@ -67,17 +79,16 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
         functionName: "selfRegisterForProposal",
         args: [proposalId],
       });
-      
+
       // Invalidate queries to force refetch
       queryClient.invalidateQueries();
-      
+
       notification.success("Вы успешно зарегистрированы для этого голосования!");
     } catch (e: any) {
       console.error("Error self-registering for proposal:", e);
       notification.error(e.message || "Ошибка регистрации");
     }
   };
-
 
   const getStatusBadge = () => {
     if (finalized) return <span className="badge badge-neutral">Завершено</span>;
@@ -171,7 +182,10 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
 
         {isRegisteredForProposal && !isActive && !hasVoted && connectedAddress && !hasEnded && (
           <div className="alert alert-success mt-2">
-            <span>✅ Вы зарегистрированы! Голосование начнется {formatDistanceToNow(new Date(Number(startTime) * 1000), { addSuffix: true, locale: ru })}</span>
+            <span>
+              ✅ Вы зарегистрированы! Голосование начнется{" "}
+              {formatDistanceToNow(new Date(Number(startTime) * 1000), { addSuffix: true, locale: ru })}
+            </span>
           </div>
         )}
 
