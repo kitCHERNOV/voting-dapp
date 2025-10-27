@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { Address } from "~~/components/scaffold-eth";
-import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useBlockTimestamp, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 interface ProposalVoterManagementProps {
@@ -21,17 +21,19 @@ export default function ProposalVoterManagement({ proposalId }: ProposalVoterMan
     args: [proposalId],
   });
 
-  const { writeContractAsync: registerVoterForProposal, isPending: isRegistering } =
-    useScaffoldWriteContract("DecentralizedVoting");
-  const { writeContractAsync: registerVotersBatchForProposal, isPending: isBatchRegistering } =
-    useScaffoldWriteContract("DecentralizedVoting");
+  const { writeContractAsync, isPending: isRegistering } =
+    useScaffoldWriteContract({ contractName: "DecentralizedVoting" });
+  const isBatchRegistering = isRegistering;
   // const { writeContractAsync: deregisterVoterForProposal } =
   //   useScaffoldWriteContract("DecentralizedVoting");
+
+  // Use blockchain timestamp for accurate time calculations
+  const blockTimestamp = useBlockTimestamp();
 
   if (!proposal) return null;
 
   const [, , , creator, startTime, endTime, finalized] = proposal;
-  const now = Math.floor(Date.now() / 1000);
+  const now = blockTimestamp;
   const isCreator = connectedAddress && creator && connectedAddress.toLowerCase() === creator.toLowerCase();
   const canManageVoters = isCreator && now < Number(startTime) && !finalized;
 
@@ -44,7 +46,7 @@ export default function ProposalVoterManagement({ proposalId }: ProposalVoterMan
     }
 
     try {
-      await registerVoterForProposal({
+      await writeContractAsync({
         functionName: "registerVoterForProposal",
         args: [proposalId, voterAddress as `0x${string}`],
       });
@@ -75,7 +77,7 @@ export default function ProposalVoterManagement({ proposalId }: ProposalVoterMan
     }
 
     try {
-      await registerVotersBatchForProposal({
+      await writeContractAsync({
         functionName: "registerVotersBatchForProposal",
         args: [proposalId, addresses as `0x${string}`[]],
       });

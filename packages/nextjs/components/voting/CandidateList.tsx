@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { useBlockTimestamp, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 interface CandidateListProps {
@@ -11,6 +11,7 @@ interface CandidateListProps {
   selectedCandidate?: bigint | null;
   showVoteButton?: boolean;
   canVote?: boolean;
+  hasEnded?: boolean;
 }
 
 export default function CandidateList({
@@ -19,14 +20,12 @@ export default function CandidateList({
   selectedCandidate,
   showVoteButton = false,
   canVote = false,
+  hasEnded = false,
 }: CandidateListProps) {
   const { address: connectedAddress } = useAccount();
   const [votingCandidate, setVotingCandidate] = useState<bigint | null>(null);
 
-  // Use blockchain timestamp for accurate time calculations
-  const blockTimestamp = useBlockTimestamp();
-
-  const { writeContractAsync: vote } = useScaffoldWriteContract("DecentralizedVoting");
+  const { writeContractAsync } = useScaffoldWriteContract({ contractName: "DecentralizedVoting" });
 
   const { data: candidateIds } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
@@ -48,23 +47,27 @@ export default function CandidateList({
 
   const handleVote = async (candidateId: bigint) => {
     if (!canVote || hasVoted) {
-      notification.error("Вы не можете голосовать");
+      notification.error("Вы не можете голосовать. Проверьте, что вы зарегистрированы и голосование активно.");
       return;
     }
 
     setVotingCandidate(candidateId);
 
     try {
-      await vote({
+      await writeContractAsync({
         functionName: "vote",
         args: [proposalId, candidateId],
       });
       notification.success("Голос успешно отдан!");
-      // Обновляем страницу для отображения новых результатов
-      window.location.reload();
+      // Page will auto-update via wagmi cache refresh
     } catch (e: any) {
       console.error("Error voting:", e);
-      notification.error(e.message || "Ошибка голосования");
+      const errorMessage = e.message || "Ошибка голосования";
+      if (errorMessage.includes("ended") || errorMessage.includes("not started")) {
+        notification.error("Голосование не активно. Возможно, срок истек или еще не началось.");
+      } else {
+        notification.error(errorMessage);
+      }
     } finally {
       setVotingCandidate(null);
     }
@@ -80,16 +83,15 @@ export default function CandidateList({
     <div className="space-y-2">
       <h3 className="font-bold mb-2">Кандидаты:</h3>
 
-      {/* Отладочная информация */}
-      <div className="text-xs opacity-60 mb-2">
-        canVote: {canVote ? "true" : "false"}, hasVoted: {hasVoted ? "true" : "false"}
-        <br />
-        Текущее время блокчейна: {new Date(blockTimestamp * 1000).toLocaleString()}
-      </div>
-
       {hasVoted && (
         <div className="alert alert-success mb-4">
           <span>✅ Вы уже проголосовали в этом голосовании</span>
+        </div>
+      )}
+
+      {hasEnded && !hasVoted && !canVote && (
+        <div className="alert alert-error mb-4">
+          <span>❌ Голосование завершено. Срок для голосования истек.</span>
         </div>
       )}
       {candidateIds.map((candidateId, index) => {

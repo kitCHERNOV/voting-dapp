@@ -13,9 +13,7 @@ export default function CreateProposal() {
     { name: "", description: "" },
   ]);
 
-  const { writeContractAsync: createProposal, isPending: isCreating } = useScaffoldWriteContract("DecentralizedVoting");
-  const { writeContractAsync: addCandidate, isPending: isAddingCandidate } =
-    useScaffoldWriteContract("DecentralizedVoting");
+  const { writeContractAsync, isPending: isCreating } = useScaffoldWriteContract({ contractName: "DecentralizedVoting" });
 
   const { data: proposalCount } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
@@ -46,7 +44,7 @@ export default function CreateProposal() {
 
     try {
       // Создаем голосование
-      await createProposal({
+      await writeContractAsync({
         functionName: "createProposal",
         args: [title, description, BigInt(duration)],
       });
@@ -59,7 +57,7 @@ export default function CreateProposal() {
       // Добавляем кандидатов
       for (const candidate of candidates) {
         if (candidate.name) {
-          await addCandidate({
+          await writeContractAsync({
             functionName: "addCandidate",
             args: [newProposalId, candidate.name, candidate.description],
           });
@@ -165,8 +163,8 @@ export default function CreateProposal() {
             </button>
 
             <div className="card-actions justify-end mt-6">
-              <button type="submit" className="btn btn-primary" disabled={isCreating || isAddingCandidate}>
-                {isCreating || isAddingCandidate ? "Создание..." : "Создать голосование"}
+              <button type="submit" className="btn btn-primary" disabled={isCreating}>
+                {isCreating ? "Создание..." : "Создать голосование"}
               </button>
             </div>
           </form>

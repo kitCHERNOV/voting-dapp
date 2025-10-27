@@ -8,10 +8,9 @@ export default function AdminPanel() {
   const [voterAddress, setVoterAddress] = useState("");
   const [proposalIdToFinalize, setProposalIdToFinalize] = useState("");
 
-  const { writeContractAsync: registerVoter, isPending: isRegistering } =
-    useScaffoldWriteContract("DecentralizedVoting");
-  const { writeContractAsync: finalizeProposal, isPending: isFinalizing } =
-    useScaffoldWriteContract("DecentralizedVoting");
+  const { writeContractAsync, isPending: isRegistering } =
+    useScaffoldWriteContract({ contractName: "DecentralizedVoting" });
+  const isFinalizing = isRegistering;
 
   const { data: proposalCount } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
@@ -22,7 +21,7 @@ export default function AdminPanel() {
     e.preventDefault();
 
     try {
-      await registerVoter({
+      await writeContractAsync({
         functionName: "registerVoter",
         args: [voterAddress as `0x${string}`],
       });
@@ -38,7 +37,7 @@ export default function AdminPanel() {
     e.preventDefault();
 
     try {
-      await finalizeProposal({
+      await writeContractAsync({
         functionName: "finalizeProposal",
         args: [BigInt(proposalIdToFinalize)],
       });

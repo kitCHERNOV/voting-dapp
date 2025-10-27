@@ -17,12 +17,6 @@ export default function VotingPage() {
     functionName: "owner",
   });
 
-  const { data: isRegistered } = useScaffoldReadContract({
-    contractName: "DecentralizedVoting",
-    functionName: "registeredVoters",
-    args: [connectedAddress],
-  });
-
   const isOwner = connectedAddress && owner && connectedAddress.toLowerCase() === owner.toLowerCase();
 
   return (
@@ -35,17 +29,10 @@ export default function VotingPage() {
             <div className="mt-4 flex justify-center items-center gap-2">
               <span>Подключен:</span>
               <Address address={connectedAddress} />
-              {isRegistered && <span className="badge badge-success">✓ Зарегистрирован</span>}
               {isOwner && <span className="badge badge-primary">👑 Владелец</span>}
             </div>
           )}
 
-          {/* Отладочная информация */}
-          <div className="mt-4 text-sm opacity-60">
-            <div>Владелец контракта: {owner ? <Address address={owner} /> : "Загрузка..."}</div>
-            <div>Ваш адрес: {connectedAddress ? <Address address={connectedAddress} /> : "Не подключен"}</div>
-            <div>Статус: {isOwner ? "Владелец" : "Пользователь"}</div>
-          </div>
         </div>
 
         {/* Tabs */}

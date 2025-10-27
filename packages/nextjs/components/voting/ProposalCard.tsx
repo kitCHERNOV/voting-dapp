@@ -7,6 +7,7 @@ import ProposalVoterManagement from "./ProposalVoterManagement";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useAccount } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { useBlockTimestamp, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -19,6 +20,7 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [showVoterManagement, setShowVoterManagement] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<bigint | null>(null);
+  const queryClient = useQueryClient();
 
   // Use blockchain timestamp instead of client time
   const blockTimestamp = useBlockTimestamp();
@@ -35,19 +37,13 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
     args: [proposalId, connectedAddress],
   });
 
-  const { data: isGloballyRegistered } = useScaffoldReadContract({
-    contractName: "DecentralizedVoting",
-    functionName: "registeredVoters",
-    args: [connectedAddress],
-  });
-
   const { data: isRegisteredForProposal } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
     functionName: "isVoterRegisteredForProposal",
     args: [proposalId, connectedAddress],
   });
 
-  const { writeContractAsync: selfRegisterForProposal } = useScaffoldWriteContract("DecentralizedVoting");
+  const { writeContractAsync } = useScaffoldWriteContract({ contractName: "DecentralizedVoting" });
 
   if (!proposal) return null;
 
@@ -58,23 +54,30 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
   const hasEnded = now > Number(endTime);
   const isCreator = connectedAddress && creator && connectedAddress.toLowerCase() === creator.toLowerCase();
 
-  // User can vote if they are globally registered OR registered for this specific proposal
-  const canVote = isGloballyRegistered || isRegisteredForProposal;
-  const canSelfRegister = now < Number(startTime) && !finalized; // Can only register before voting starts
+  // User can vote only if they're registered for this proposal AND haven't voted yet AND voting is active
+  const canVote = connectedAddress && isRegisteredForProposal && isActive && !hasVoted;
+  // Registration is only allowed BEFORE voting starts
+  const canRegister = connectedAddress && !isRegisteredForProposal && now < Number(startTime) && !finalized;
+  // Show candidates only if registered
+  const shouldShowCandidates = isRegisteredForProposal;
 
   const handleSelfRegisterForProposal = async () => {
     try {
-      await selfRegisterForProposal({
+      await writeContractAsync({
         functionName: "selfRegisterForProposal",
         args: [proposalId],
       });
+      
+      // Invalidate queries to force refetch
+      queryClient.invalidateQueries();
+      
       notification.success("Вы успешно зарегистрированы для этого голосования!");
-      window.location.reload();
     } catch (e: any) {
       console.error("Error self-registering for proposal:", e);
       notification.error(e.message || "Ошибка регистрации");
     }
   };
+
 
   const getStatusBadge = () => {
     if (finalized) return <span className="badge badge-neutral">Завершено</span>;
@@ -86,8 +89,7 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
         <CompactCountdownTimer
           targetTime={Number(startTime)}
           onComplete={() => {
-            // Обновляем страницу когда голосование начинается
-            window.location.reload();
+            // Auto-update handled by wagmi cache
           }}
         />
       </div>
@@ -132,43 +134,50 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
               })}
             </span>
           </div>
-
-          {/* Отладочная информация о времени */}
-          <div className="text-xs opacity-60 mt-2 border-t pt-2">
-            <div>Текущее время блокчейна: {new Date(now * 1000).toLocaleString()}</div>
-            <div>Время начала голосования: {new Date(Number(startTime) * 1000).toLocaleString()}</div>
-            <div>Время окончания: {new Date(Number(endTime) * 1000).toLocaleString()}</div>
-            <div>Статус: {isActive ? "Активно" : hasEnded ? "Завершено" : "Ожидает начала"}</div>
-            <div>isActive: {isActive ? "true" : "false"}</div>
-            <div>hasVoted: {hasVoted ? "true" : "false"}</div>
-            <div>canVote: {canVote ? "true" : "false"}</div>
-            <div>canVote для CandidateList: {isActive && !hasVoted && canVote ? "true" : "false"}</div>
-          </div>
         </div>
+
+        {!connectedAddress && (
+          <div className="alert alert-warning mt-2">
+            <span>⚠️ Подключите кошелек для голосования</span>
+          </div>
+        )}
+
+        {canRegister && connectedAddress && !isRegisteredForProposal && (
+          <div className="alert alert-warning mt-2">
+            <div className="flex flex-col gap-2">
+              <span>⚠️ Зарегистрируйтесь для участия в голосовании (до начала)</span>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleSelfRegisterForProposal}
+                disabled={isRegisteredForProposal}
+              >
+                {isRegisteredForProposal ? "✓ Зарегистрирован" : "Зарегистрироваться для голосования"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!canRegister && !isRegisteredForProposal && connectedAddress && !hasEnded && isActive && (
+          <div className="alert alert-error mt-2">
+            <span>❌ Вы не успели зарегистрироваться до начала голосования. Регистрация закрыта.</span>
+          </div>
+        )}
+
+        {hasEnded && !isRegisteredForProposal && connectedAddress && (
+          <div className="alert alert-error mt-2">
+            <span>❌ Голосование завершено. Регистрация больше невозможна.</span>
+          </div>
+        )}
+
+        {isRegisteredForProposal && !isActive && !hasVoted && connectedAddress && !hasEnded && (
+          <div className="alert alert-success mt-2">
+            <span>✅ Вы зарегистрированы! Голосование начнется {formatDistanceToNow(new Date(Number(startTime) * 1000), { addSuffix: true, locale: ru })}</span>
+          </div>
+        )}
 
         {hasVoted && (
           <div className="alert alert-success mt-2">
             <span>✓ Вы проголосовали</span>
-          </div>
-        )}
-
-        {!canVote && connectedAddress && !isCreator && (
-          <div className="alert alert-warning mt-2">
-            <div className="flex flex-col gap-2">
-              <span>⚠️ Вы не зарегистрированы для этого голосования.</span>
-              {canSelfRegister && (
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={handleSelfRegisterForProposal}
-                  disabled={isRegisteredForProposal}
-                >
-                  {isRegisteredForProposal ? "✓ Зарегистрирован" : "Зарегистрироваться для голосования"}
-                </button>
-              )}
-              {!canSelfRegister && (
-                <span className="text-sm opacity-70">Регистрация недоступна после начала голосования</span>
-              )}
-            </div>
           </div>
         )}
 
@@ -193,14 +202,20 @@ export default function ProposalCard({ proposalId }: ProposalCardProps) {
 
         {showDetails && (
           <div className="mt-4 border-t pt-4">
-            <CandidateList
-              proposalId={proposalId}
-              onSelectCandidate={setSelectedCandidate}
-              selectedCandidate={selectedCandidate}
-              showVoteButton={true}
-              canVote={isActive && !hasVoted && canVote}
-              startTime={Number(startTime)}
-            />
+            {shouldShowCandidates ? (
+              <CandidateList
+                proposalId={proposalId}
+                onSelectCandidate={setSelectedCandidate}
+                selectedCandidate={selectedCandidate}
+                showVoteButton={canVote}
+                canVote={canVote}
+                hasEnded={hasEnded}
+              />
+            ) : (
+              <div className="alert alert-warning">
+                <span>⚠️ Необходимо зарегистрироваться для участия в голосовании</span>
+              </div>
+            )}
           </div>
         )}
 
