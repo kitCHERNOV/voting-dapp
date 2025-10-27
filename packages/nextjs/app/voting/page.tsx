@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { Address } from "~~/components/scaffold-eth";
-import AdminPanel from "~~/components/voting/AdminPanel";
 import CreateProposal from "~~/components/voting/CreateProposal";
 import ProposalList from "~~/components/voting/ProposalList";
+import TestingPanel from "~~/components/voting/TestingPanel";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
 export default function VotingPage() {
   const { address: connectedAddress } = useAccount();
-  const [activeTab, setActiveTab] = useState<"vote" | "create" | "admin">("vote");
+  const [activeTab, setActiveTab] = useState<"vote" | "create" | "testing">("vote");
 
   const { data: owner } = useScaffoldReadContract({
     contractName: "DecentralizedVoting",
@@ -43,18 +43,16 @@ export default function VotingPage() {
           <a className={`tab ${activeTab === "create" ? "tab-active" : ""}`} onClick={() => setActiveTab("create")}>
             ➕ Создать
           </a>
-          {isOwner && (
-            <a className={`tab ${activeTab === "admin" ? "tab-active" : ""}`} onClick={() => setActiveTab("admin")}>
-              ⚙️ Админ
-            </a>
-          )}
+          <a className={`tab ${activeTab === "testing" ? "tab-active" : ""}`} onClick={() => setActiveTab("testing")}>
+            🧪 Тестирование
+          </a>
         </div>
 
         {/* Content */}
         <div className="w-full">
           {activeTab === "vote" && <ProposalList />}
           {activeTab === "create" && <CreateProposal />}
-          {activeTab === "admin" && isOwner && <AdminPanel />}
+          {activeTab === "testing" && <TestingPanel />}
         </div>
       </div>
     </div>

@@ -1,13 +1,23 @@
-# 🏗 Scaffold-ETH 2
+# 🗳️ Decentralized Voting System
 
 <h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
+  Decentralized Voting Platform Built on Ethereum
 </h4>
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+Проект представляет собой полноценную систему децентрализованного голосования на блокчейне Ethereum. Система позволяет создавать голосования, регистрировать участников и проводить прозрачное голосование с автоматическим подсчетом результатов.
 
-⚙️ Built using NextJS, RainbowKit, Hardhat, Wagmi, Viem, and Typescript.
+## 🎯 Основные возможности
+
+- ✅ **Создание голосований**: Пользователи могут создавать голосования с настраиваемыми параметрами
+- 🔐 **Децентрализованная регистрация**: Участники могут самостоятельно регистрироваться для голосования
+- 🗳️ **Прозрачное голосование**: Все голоса записываются в блокчейн для полной прозрачности
+- 👥 **Управление участниками**: Создатель голосования может управлять списком участников
+- 📊 **Автоматический подсчет**: Результаты голосования рассчитываются автоматически
+- 🧪 **Полное тестирование**: Комплексные тесты для проверки функционала
+
+## 🛠 Технологический стек
+
+⚙️ Built using **NextJS**, **RainbowKit**, **Hardhat**, **Wagmi**, **Viem**, and **TypeScript**.
 
 - ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
 - 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
@@ -15,7 +25,29 @@
 - 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
 - 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+## 📋 Функционал
+
+### Smart Contract (DecentralizedVoting.sol)
+
+Контракт поддерживает следующие операции:
+
+1. **Создание голосований** (`createProposal`): Создайте новое голосование с названием, описанием и продолжительностью
+2. **Добавление кандидатов** (`addCandidate`): Добавьте кандидатов к голосованию до начала голосования
+3. **Регистрация участников**:
+   - `selfRegisterForProposal`: Участники регистрируются самостоятельно
+   - `registerVoterForProposal`: Создатель регистрирует участников вручную
+4. **Голосование** (`vote`): Зарегистрированные участники могут проголосовать один раз
+5. **Финализация** (`finalizeProposal`): Завершите голосование и определите победителя
+
+### Web Interface
+
+Приложение предоставляет удобный интерфейс для:
+- 📊 Просмотра всех активных голосований
+- ➕ Создания новых голосований
+- 🗳️ Участия в голосовании
+- 🧪 Тестирования системы
+
+![Voting Interface](https://via.placeholder.com/800x400/0D1117/FFFFFF?text=Decentralized+Voting+Interface)
 
 ## Requirements
 
@@ -60,11 +92,42 @@ yarn start
 
 Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
 
-Run smart contract test with `yarn hardhat:test`
+### Запуск тестов
 
-- Edit your smart contracts in `packages/hardhat/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/hardhat/deploy`
+Запустите полный набор тестов для проверки функционала контракта:
+
+```bash
+yarn test
+```
+
+Тесты проверяют:
+- ✅ Развертывание контракта
+- ✅ Создание голосований
+- ✅ Добавление кандидатов
+- ✅ Регистрацию участников
+- ✅ Процесс голосования
+- ✅ Подсчет результатов
+- ✅ Финализацию голосования
+- ✅ Обработку граничных случаев
+
+### Структура проекта
+
+- **Smart Contract**: `packages/hardhat/contracts/DecentralizedVoting.sol`
+- **Frontend Components**: `packages/nextjs/components/voting/`
+- **Tests**: `packages/hardhat/test/DecentralizedVoting.test.ts`
+- **Deployment**: `packages/hardhat/deploy/00_deploy_your_contract.ts`
+
+### Основные файлы
+
+- **Контракт голосования**: `packages/hardhat/contracts/DecentralizedVoting.sol`
+- **Главная страница приложения**: `packages/nextjs/app/voting/page.tsx`
+- **Компоненты**: 
+  - `ProposalCard.tsx` - Карточка голосования
+  - `ProposalList.tsx` - Список голосований
+  - `CreateProposal.tsx` - Создание голосований
+  - `CandidateList.tsx` - Список кандидатов
+  - `TestingPanel.tsx` - Панель тестирования
+- **Тесты**: `packages/hardhat/test/DecentralizedVoting.test.ts`
 
 
 ## Documentation
